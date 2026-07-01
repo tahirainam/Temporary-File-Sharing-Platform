@@ -4,7 +4,7 @@ import DownloadPage from "../View/DownloadPage.vue";
 
 const routes = [
   { path: "/", component: UploadPage },
-  { path: "/download", component: DownloadPage },
+  { path: "/d/:token", component: DownloadPage },
 ];
 
 const router = createRouter({
