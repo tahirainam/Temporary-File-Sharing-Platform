@@ -145,25 +145,24 @@ defineEmits(["update:expiresIn", "update:maxDownloads", "update:password"]);
 
 ## 4. Screenshots
 
+**Home Page**
+
+![Download page](../public/home.png)
 **Upload Page**
 
-![Upload page](screenshots/upload.png)
+![Upload page](../public/uploading.png)
+
 
 **Upload Result — Link and QR Code**
 
-![Upload result](screenshots/result.png)
+![Upload result](../public/Link.png)
+![Upload result](../public/qrcode.png)
 
 **Download Page**
 
-![Download page](screenshots/download.png)
+![Download page](../public/download.png)
 
-**PDF Preview**
 
-![PDF preview](screenshots/preview.png)
-
-**Expired Link State**
-
-![Not found](screenshots/not-found.png)
 
 ---
 
