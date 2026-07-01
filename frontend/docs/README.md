@@ -108,7 +108,7 @@ The `:token` parameter represents the unique download token generated after a su
 
 ---
 
-# 🧩 Modular Component Architecture
+# Modular Component Architecture
 
 The interface is divided into reusable Vue components.
 
@@ -135,7 +135,7 @@ This architecture improves:
 
 ---
 
-# 🔄 Inter-Component Communication
+# Inter-Component Communication
 
 The application follows Vue's recommended pattern:
 

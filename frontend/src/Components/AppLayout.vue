@@ -10,7 +10,7 @@ import Footer from "./Footer.vue";
       <div class="container mx-auto p-4 mb-4">
         <RouterLink class="hover:text-blue-500" to="/">Upload File</RouterLink>
         &nbsp;
-        <RouterLink class="hover:text-blue-500" to="/d/token"
+        <RouterLink class="hover:text-blue-500" to="/d/:token"
           >Downloads</RouterLink
         >
       </div>
