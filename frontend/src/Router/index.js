@@ -1,10 +1,17 @@
 import { createRouter, createWebHistory } from "vue-router";
+import AppLayout from "../Components/AppLayout.vue";
 import UploadPage from "../View/UploadPage.vue";
 import DownloadPage from "../View/DownloadPage.vue";
 
 const routes = [
-  { path: "/", component: UploadPage },
-  { path: "/d/:token", component: DownloadPage },
+  {
+    path: "/",
+    component: AppLayout,
+    children: [
+      { path: "", component: UploadPage },
+      { path: "d/:token", component: DownloadPage },
+    ],
+  },
 ];
 
 const router = createRouter({

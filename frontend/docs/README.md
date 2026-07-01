@@ -1,272 +1,184 @@
-# QuickShare
+# QuickShare — Deliverable 1: Client-Side Architecture
 
-QuickShare is a temporary file sharing platform that enables users to upload files and share them via a
-time-limited, token-based link. The recipient opens the link, optionally enters a password, previews the
-file if it is a PDF or image, and downloads it. Files expire automatically either after a set duration or after
-a maximum number of downloads, whichever limit is reached first.
-Project Title: QuickShare (Temporary File Sharing Platform)
-Technology Stack: Vue (Composition API), Vue Router, Tailwind CSS, Vite
+## Project Overview
 
----
+QuickShare is a temporary file sharing platform. A user uploads a file, sets an expiry time and optional password, and receives a shareable link. The recipient opens the link, enters the password if required, previews the file, and downloads it.
 
-## Problem Statement
-
-Existing file sharing tools either require both parties to have accounts (Google Drive, Dropbox) or offer
-limited control over file lifespan and access restrictions (WeTransfer free tier). QuickShare addresses this
-gap by providing anonymous, no-account file sharing with configurable expiry by time, configurable expiry
-by download count, and optional password protection, all accessible via a single shareable link.
+This deliverable covers the complete client-side frontend built with Vue 3, Vue Router, and Tailwind CSS. All API calls are simulated. The backend (Express.js + MongoDB) is Deliverable 2.
 
 ---
 
-## System Overview
+## Tech Stack
 
-The client-side application consists of two primary routes and a shared layout, decomposed into six
-focused Vue components. The diagram below represents the full component hierarchy as implemented.
-
----
-
-## Architecture Tree
-
-```text
-src
-├── components
-│   ├── FileDropzone.vue
-│   ├── UploadOptions.vue
-│   ├── UploadResult.vue
-│   ├── Navbar.vue
-│   ├── Footer.vue
-│   └── AppLayout.vue
-│
-├── views
-│   ├── UploadPage.vue
-│   └── DownloadPage.vue
-│
-├── router
-│   └── index.js
-│
-├── App.vue
-└── main.js
-```
-
-Each component has a single, clearly bounded responsibility. No component manages state that belongs
-to another; all shared state is owned by the nearest common ancestor (UploadPage.vue for the upload
-flow), following the Vue principle of lifting state up.
+| Technology              | Purpose                                |
+| ----------------------- | -------------------------------------- |
+| Vue 3 (Composition API) | Frontend framework                     |
+| Vue Router 4            | SPA routing                            |
+| Tailwind CSS            | Utility-first styling                  |
+| Vite                    | Dev server and build tool              |
+| qrcode                  | Generate QR code from share link       |
+| vue-pdf-embed           | Render PDF files inline in the browser |
 
 ---
 
-## Single Page Application Routing
+## 1. SPA Routing
 
-Vue Router is configured with two named routes. Navigation never triggers a full page reload; the router
-intercepts the URL change and swaps the active component inside <RouterView> in the layout wrapper.
+Vue Router handles navigation without full page reloads. Routes are nested under `AppLayout` so the navbar appears on every page automatically.
 
-### Routes
-
-| Route       | Description   |
-| ----------- | ------------- |
-| `/`         | Upload Page   |
-| `/d/:token` | Download Page |
-
-### Router Configuration
-
-```javascript
-import { createRouter, createWebHistory } from "vue-router";
-
-import UploadPage from "../views/UploadPage.vue";
-import DownloadPage from "../views/DownloadPage.vue";
-
+```js
+// src/router/index.js
 const routes = [
   {
     path: "/",
-    component: UploadPage,
-  },
-  {
-    path: "/d/:token",
-    component: DownloadPage,
+    component: AppLayout,
+    children: [
+      { path: "", name: "upload", component: UploadPage },
+      { path: "d/:token", name: "download", component: DownloadPage },
+    ],
   },
 ];
 
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-});
-
-export default router;
+export default createRouter({ history: createWebHistory(), routes });
 ```
 
-```javascript
-(
-  <RouterLink class="hover:text-blue-500" to="/">
-    Upload File
-  </RouterLink>
-) & nbsp;
-<RouterLink class="hover:text-blue-500" to="/d/:token">
-  Downloads
-</RouterLink>;
-```
+**Why `createWebHistory()`:** Produces clean URLs like `/d/:token` instead of `/#/d/:token`. Clean URLs are required because share links are sent via messaging apps and email.
 
-The `:token` parameter represents the unique download token generated after a successful upload.
+**Why nested under AppLayout:** The navbar is defined once in `AppLayout.vue` and all child routes inherit it automatically, without duplicating markup.
 
 ---
 
-# Modular Component Architecture
+## 2. Component Architecture
 
-The interface is divided into reusable Vue components.
+```
+App.vue
+  └── AppLayout.vue               navbar + RouterView
+        ├── UploadPage.vue        route: /  — owns all upload state
+        │     ├── FileDropzone.vue
+        │     ├── UploadOptions.vue
+        │     └── UploadResult.vue
+        └── DownloadPage.vue      route: /d/:token
+```
 
-## Components
+### Directory Structure
 
-- FileDropzone
-- UploadOptions
-- UploadResult
-- Navbar
-- Footer
-- AppLayout
-
-## Views
-
-- UploadPage
-- DownloadPage
-
-This architecture improves:
-
-- Reusability
-- Maintainability
-- Scalability
-- Easier debugging
+```
+src/
+  views/
+    UploadPage.vue
+    DownloadPage.vue
+  components/
+    AppLayout.vue
+    FileDropzone.vue
+    UploadOptions.vue
+    UploadResult.vue
+  router/
+    index.js
+  App.vue
+  main.js
+```
 
 ---
 
-# Inter-Component Communication
+## 3. Props and Emits
 
-The application follows Vue's recommended pattern:
+All upload state lives in `UploadPage.vue` (the parent). Children receive values via props and report changes via emits. This is called lifting state up — one source of truth, easy to reset.
 
-- Parent owns the data.
-- Children receive data using **Props**.
-- Children communicate changes using **Custom Events ($emit)**.
-
-This creates a **single source of truth** inside `UploadPage.vue`.
-
-### Example
+### Props example (FileDropzone.vue)
 
 ```vue
-<!-- Parent -->
-<UploadResult :downloadLink="downloadLink" @copy-link="copyLink" />
-```
-
-```javascript
-// Child
-
+<script setup>
 const props = defineProps({
-  downloadLink: String,
+  selectedFile: { type: File, default: null },
 });
 
-const emit = defineEmits(["copy-link"]);
+const emit = defineEmits(["file-selected"]);
 
-function copy() {
-  emit("copy-link");
+function onDrop(event) {
+  event.preventDefault();
+  const file = event.dataTransfer.files[0];
+  if (file) emit("file-selected", file);
 }
+</script>
+```
+
+### Emits example (UploadOptions.vue)
+
+```vue
+<script setup>
+defineProps({
+  expiresIn: { type: String, default: "24h" },
+  maxDownloads: { type: String, default: "" },
+  password: { type: String, default: "" },
+});
+
+defineEmits(["update:expiresIn", "update:maxDownloads", "update:password"]);
+</script>
+
+<template>
+  <select
+    :value="expiresIn"
+    @change="$emit('update:expiresIn', $event.target.value)"
+  >
+    <option value="1h">1 hour</option>
+    <option value="24h">24 hours</option>
+    <option value="7d">7 days</option>
+  </select>
+</template>
+```
+
+### Parent wiring (UploadPage.vue)
+
+```vue
+<FileDropzone :selected-file="selectedFile" @file-selected="onFileSelected" />
+
+<UploadOptions
+  :expires-in="expiresIn"
+  :max-downloads="maxDownloads"
+  :password="password"
+  @update:expires-in="expiresIn = $event"
+  @update:max-downloads="maxDownloads = $event"
+  @update:password="password = $event"
+/>
 ```
 
 ---
 
-## Getting Started
+## 4. Screenshots
+
+**Upload Page**
+
+![Upload page](screenshots/upload.png)
+
+**Upload Result — Link and QR Code**
+
+![Upload result](screenshots/result.png)
+
+**Download Page**
+
+![Download page](screenshots/download.png)
+
+**PDF Preview**
+
+![PDF preview](screenshots/preview.png)
+
+**Expired Link State**
+
+![Not found](screenshots/not-found.png)
+
+---
+
+## Running Locally
 
 ```bash
-git clone <repository-url>
-cd quickshare
 npm install
 npm run dev
 ```
 
----
+Open `http://localhost:5173`
 
-# Screenshots
-
-Create a folder named **screenshots** inside the repository and place your images there.
-
-```text
-screenshots/
-│
-├── home-page.png
-├── upload-page.png
-├── download-page.png
-├── success-page.png
-└── full-home-page.png
-```
-
-Then display them like this:
-
-```markdown
-## Home Page
-
-![Upload Page](../src/assets/screenshots/qs1.jpg)
+**Student Name: Tahira Inam 23010101-105**
+**Student Name: Raeesa Riaz 23010101-007**
+**Instructor:** Museb Khalid
+**Submission Date:** July 1, 2026
 
 ---
-
-## Upload Page
-
-![Upload Page](../src/assets/screenshots/qs3.jpg)
-![Upload Page](../src/assets/screenshots/qs3.1.jpg)
-
----
-
-## Download Page
-
-![Download Page](../src/assets/screenshots/qs5.jpg)
-
----
-
-## Successful Download
-
-![Successful Download](../src/assets/screenshots/qs4.jpg)
-
----
-
-## Full Home Page
-
-![Full Home Page](../src/assets/screenshots/qs2.jpg)
-```
-
----
-
-# 🚀 Getting Started
-
-Clone the repository
-
-```bash
-git clone https://github.com/tahirainam/Temporary-File-Transfer-Platform.git
-```
-
-Navigate into the project
-
-```bash
-cd frontend
-```
-
-Install dependencies
-
-```bash
-npm install
-```
-
-Run the development server
-
-```bash
-npm run dev
-```
-
----
-
-## Authors
-
-- Tahira Inam
-- Raeesa Riaz
-
----
-
-## 📄 License
-
-This project was developed for academic purposes as part of the Web Engineering Semester Project.
-
-```
-
-```

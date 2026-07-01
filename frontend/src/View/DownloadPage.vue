@@ -1,37 +1,90 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
+import VuePdfEmbed from "vue-pdf-embed";
 
+// Get the token from the URL (/d/:token)
 const route = useRoute();
 const token = route.params.token;
 
-// Possible states: 'loading' | 'ready' | 'not-found' | 'downloading' | 'done' | 'wrong-password'
+// State
 const status = ref("loading");
 
+// File info returned from the API
 const fileInfo = ref(null);
-const passwordInput = ref("");
 
-// SIMULATED for now — replace with a real GET /api/files/:token call.
-// On 404/expired, set status = 'not-found'. On success, populate fileInfo.
+// Password the user types in
+const password = ref("");
+const passwordError = ref(false);
+
+// Whether to show the file preview
+const showPreview = ref(false);
+
+// Computed
+
+// Get the file extension in uppercase (e.g. 'PDF', 'PNG')
+const fileExtension = computed(() => {
+  if (!fileInfo.value) return "";
+  const parts = fileInfo.value.fileName.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
+});
+
+// Should we show a preview option?
+const canPreview = computed(() => {
+  return ["PDF", "PNG", "JPG", "JPEG"].includes(fileExtension.value);
+});
+
+// Is this a PDF specifically?
+const isPdf = computed(() => fileExtension.value === "PDF");
+
+// Is this an image?
+const isImage = computed(() =>
+  ["PNG", "JPG", "JPEG"].includes(fileExtension.value),
+);
+
+// Lifecycle
+
+// When the page loads, fetch file info from the backend
+// SIMULATED  replace with: const res = await axios.get(`/api/files/${token}`)
 onMounted(() => {
   setTimeout(() => {
     fileInfo.value = {
-      fileName: "resume.pdf",
-      fileSize: "204 KB",
+      fileName: `file-${token}.pdf`, // uses the actual token from the URL
+      fileSize: 1.8 * 1024 * 1024,
       requiresPassword: true,
-      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toLocaleString(),
+      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
     };
     status.value = "ready";
-  }, 500);
+  }, 600);
 });
 
-// SIMULATED for now — replace with a real POST /api/files/:token/download call.
+// Helpers
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function timeLeft(date) {
+  const hours = Math.floor((date - new Date()) / (1000 * 60 * 60));
+  if (hours < 1) return "less than an hour";
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  return `${Math.floor(hours / 24)} days`;
+}
+
+//  Actions
+
 function handleDownload() {
-  if (fileInfo.value.requiresPassword && !passwordInput.value) {
-    status.value = "wrong-password";
+  // Check password if required
+  if (fileInfo.value.requiresPassword && !password.value) {
+    passwordError.value = true;
     return;
   }
+
+  passwordError.value = false;
+  showPreview.value = true; // unlock preview at the same time
   status.value = "downloading";
+
   setTimeout(() => {
     status.value = "done";
   }, 1000);
@@ -39,56 +92,110 @@ function handleDownload() {
 </script>
 
 <template>
-  <div class="max-w-xl mx-auto py-10 px-4">
-    <div v-if="status === 'loading'" class="text-center text-gray-500">
+  <div>
+    <!-- Loading -->
+    <div v-if="status === 'loading'" class="text-center py-20 text-gray-400">
       Checking link...
     </div>
 
-    <div v-else-if="status === 'not-found'" class="text-center">
-      <p class="text-red-600 font-medium">
-        This link is invalid or has expired.
-      </p>
-      <p class="text-sm text-gray-500 mt-2">
-        The file may have been deleted, reached its download limit, or the link
-        is wrong.
+    <!-- Not found / expired -->
+    <div v-else-if="status === 'not-found'" class="text-center py-20">
+      <p class="text-4xl mb-4">🔗</p>
+      <h2 class="text-lg font-semibold text-gray-800 mb-2">
+        Link not found or expired
+      </h2>
+      <p class="text-sm text-gray-500">
+        This file may have been deleted, expired, or reached its download limit.
       </p>
     </div>
 
-    <div v-else class="border border-gray-200 rounded-lg p-6">
-      <h2 class="text-lg font-semibold text-gray-800 mb-1">
-        {{ fileInfo.fileName }}
-      </h2>
-      <p class="text-sm text-gray-500 mb-4">
-        {{ fileInfo.fileSize }} &middot; expires {{ fileInfo.expiresAt }}
-      </p>
+    <!-- File found -->
+    <div v-else>
+      <!-- File info card -->
+      <div class="bg-white border border-gray-200 rounded-lg p-6 mb-4">
+        <!-- File name and size -->
+        <div class="flex items-center gap-4 mb-4">
+          <div
+            class="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-xs"
+          >
+            {{ fileExtension }}
+          </div>
+          <div>
+            <p class="font-semibold text-gray-800">{{ fileInfo.fileName }}</p>
+            <p class="text-sm text-gray-500">
+              {{ formatSize(fileInfo.fileSize) }}
+            </p>
+          </div>
+        </div>
 
-      <div v-if="fileInfo.requiresPassword" class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1"
-          >Password required</label
-        >
-        <input
-          v-model="passwordInput"
-          type="password"
-          placeholder="Enter password"
-          class="w-full border border-gray-300 rounded-md px-3 py-2"
-        />
-        <p v-if="status === 'wrong-password'" class="text-sm text-red-600 mt-1">
-          Incorrect password, try again.
+        <p class="text-xs text-gray-400 border-t border-gray-100 pt-3">
+          Link expires in {{ timeLeft(fileInfo.expiresAt) }}
         </p>
       </div>
 
+      <!-- Password field (only shown if file requires a password) -->
+      <div
+        v-if="fileInfo.requiresPassword && status !== 'done'"
+        class="bg-white border border-gray-200 rounded-lg p-6 mb-4"
+      >
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          This file is password protected
+        </label>
+        <input
+          v-model="password"
+          type="password"
+          placeholder="Enter password to download"
+          class="w-full border rounded-lg px-3 py-2 text-sm"
+          :class="passwordError ? 'border-red-400' : 'border-gray-300'"
+        />
+        <p v-if="passwordError" class="text-xs text-red-500 mt-1">
+          Please enter the password to continue.
+        </p>
+      </div>
+
+      <!-- Download button -->
       <button
         v-if="status !== 'done'"
         @click="handleDownload"
         :disabled="status === 'downloading'"
-        class="w-full bg-blue-600 text-white py-2 rounded-md font-medium disabled:opacity-50 hover:bg-blue-700"
+        class="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-4"
       >
-        {{ status === "downloading" ? "Downloading..." : "Download" }}
+        {{
+          status === "downloading" ? "Preparing download..." : "Download File"
+        }}
       </button>
 
-      <p v-else class="text-green-700 text-center font-medium">
-        Download started
-      </p>
+      <!-- Download started message -->
+      <div
+        v-if="status === 'done'"
+        class="bg-green-50 border border-green-200 rounded-lg p-4 text-center mb-4"
+      >
+        <p class="text-green-700 font-medium">✓ Download started</p>
+      </div>
+
+      <!-- Preview section (PDF or image) -->
+      <!-- Only shown after the user clicks Download (password verified) -->
+      <div
+        v-if="showPreview && canPreview"
+        class="bg-white border border-gray-200 rounded-lg p-4"
+      >
+        <p class="text-sm font-medium text-gray-700 mb-3">Preview</p>
+
+        <!-- PDF preview using vue-pdf-embed -->
+        <!-- In real version: pass the actual file URL from your backend -->
+        <div v-if="isPdf" class="max-h-96 overflow-y-auto">
+          <VuePdfEmbed source="https://www.w3.org/WAI/WCAG21/wcag-2.1.pdf" />
+        </div>
+
+        <!-- Image preview -->
+        <div v-if="isImage" class="text-center">
+          <img
+            src="https://via.placeholder.com/400x300"
+            alt="File preview"
+            class="max-w-full max-h-96 object-contain mx-auto rounded"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>

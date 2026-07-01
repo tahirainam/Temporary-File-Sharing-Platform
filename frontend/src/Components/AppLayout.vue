@@ -1,25 +1,26 @@
 <script setup>
-import Navbar from "./Navbar.vue";
-import Footer from "./Footer.vue";
+// This is the shell of the entire app.
+// Every page renders inside <RouterView />.
+// The navbar appears on every page automatically.
 </script>
 
 <template>
-  <Navbar />
-  <div class="flex flex-col min-h-screen">
-    <main class="flex-grow">
-      <div class="container mx-auto p-4 mb-4">
-        <RouterLink class="hover:text-blue-500" to="/">Upload File</RouterLink>
-        &nbsp;
-        <RouterLink class="hover:text-blue-500" to="/d/:token"
-          >Downloads</RouterLink
-        >
+  <div class="min-h-screen bg-gray-50">
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-gray-200">
+      <div
+        class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between"
+      >
+        <RouterLink to="/" class="text-xl font-bold text-blue-600">
+          QuickShare
+        </RouterLink>
+        <span class="text-sm text-gray-400">Temporary File Sharing</span>
       </div>
-      <div class="container mx-auto p-4">
-        <RouterView />
-      </div>
+    </nav>
+
+    <!-- Page content goes here -->
+    <main class="max-w-2xl mx-auto px-4 py-10">
+      <RouterView />
     </main>
-    <Footer />
   </div>
 </template>
-
-<style scoped></style>
